@@ -1,5 +1,6 @@
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
 
 import json
 import numpy as np
@@ -17,6 +18,7 @@ def home(request):
 
     return render(request, "chathome.html", context)
 
+@csrf_exempt
 def chattrain(request):
     context = {}
 
@@ -90,5 +92,50 @@ def chattrain(request):
 
 
     context["result"] = "Success..."
+
+    return JsonResponse(context, content_type="application/json")
+
+@csrf_exempt
+def chatanswer(request):
+    context = {}
+
+    inp = request.GET['chattext']
+
+    import colorama
+    colorama.init()
+    from colorama import Fore, Style, Back
+
+    import random
+    import pickle
+
+    file = open(f"./static/intents.json", encoding="UTF-8")
+    data = json.load(file)
+
+    # load trained model
+    model = keras.models.load_model('./static/chat_model')
+
+    # load tokenizer object
+    with open('./static/tokenizer.pickle', 'rb') as handle:
+        tokenizer = pickle.load(handle)
+
+    # load label encoder object
+    with open('./static/label_encoder.pickle', 'rb') as enc:
+        lbl_encoder = pickle.load(enc)
+
+    # parameters
+    max_len = 20
+
+    print(Fore.LIGHTBLUE_EX + "User: " + Style.RESET_ALL, end="")
+
+    result = model.predict(keras.preprocessing.sequence.pad_sequences(tokenizer.texts_to_sequences([inp]),
+                                                                      truncating='post', maxlen=max_len))
+    tag = lbl_encoder.inverse_transform([np.argmax(result)])
+
+    for i in data['intents']:
+        if i['tag'] == tag:
+            txt1 = np.random.choice(i['responses'])
+            print(Fore.GREEN + "ChatBot:" + Style.RESET_ALL, txt1)
+
+    context['anstext'] = txt1
 
     return JsonResponse(context, content_type="application/json")
